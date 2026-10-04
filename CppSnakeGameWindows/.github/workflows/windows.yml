@@ -1,0 +1,54 @@
+name: Build SnakeGame for Windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  tags:
+    - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Release
+        run: cmake --build build --config Release --parallel
+
+      - name: Package Windows game
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem -Path build -Recurse -Filter SnakeGame.exe | Select-Object -First 1
+          if (-not $exe) {
+            Write-Error "SnakeGame.exe was not produced."
+            exit 1
+          }
+
+          New-Item -ItemType Directory -Force -Path release\assets | Out-Null
+          Copy-Item $exe.FullName release\SnakeGame.exe
+          Copy-Item assets\background.png release\assets\background.png
+          Copy-Item README.md release\README.txt
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SnakeGame-Windows
+          path: release
+          retention-days: 30
+
+      - name: Create GitHub release on version tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/SnakeGame.exe
+            release/assets/background.png
